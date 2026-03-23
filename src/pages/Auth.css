@@ -117,3 +117,30 @@
 .switch-btn:hover {
     text-decoration: underline;
 }
+
+.auth-error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #f87171;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.auth-success {
+    background: rgba(0, 245, 160, 0.1);
+    border: 1px solid rgba(0, 245, 160, 0.25);
+    color: var(--accent);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.spin-icon {
+    animation: spin 0.8s linear infinite;
+}

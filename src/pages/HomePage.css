@@ -1,5 +1,7 @@
 .page {
   padding: 32px 28px;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .page-header {
@@ -53,6 +55,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  min-width: 0;
 }
 
 .ai-banner {
@@ -191,6 +194,7 @@
   background: linear-gradient(90deg, var(--accent), var(--accent2));
   border-radius: 2px;
   transition: width 0.5s ease;
+  margin-top: 20px;
 }
 
 .checklist {
@@ -270,6 +274,213 @@
   letter-spacing: 0.08em;
 }
 
+/* ── 3-Day View ─────────────────────────────────────────── */
+
+.three-day-section {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.day-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.day-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.day-card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+.today-label {
+  color: var(--accent);
+}
+
+.day-card-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.day-past,
+.day-future {
+  opacity: 0.7;
+}
+
+.day-today {
+  border-color: rgba(0, 200, 245, 0.2);
+}
+
+.exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exercise-list.dimmed {
+  font-size: 13px;
+}
+
+.el-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+
+.exercise-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.exercise-row:last-child {
+  border-bottom: none;
+}
+
+.ex-name {
+  flex: 1;
+}
+
+.ex-sets {
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.rest-badge {
+  text-align: center;
+  padding: 20px 12px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.rest-day-card {
+  text-align: center;
+  padding: 24px 0;
+  color: var(--text2);
+}
+
+.rest-day-card h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.check-name {
+  flex: 1;
+}
+
+.check-sets {
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.week-workout {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ── Modal ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  animation: modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-pop {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition);
+}
+
+.btn-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
 @media (max-width: 900px) {
   .stats-row {
     grid-template-columns: repeat(2, 1fr);
@@ -279,13 +490,48 @@
     grid-template-columns: 1fr;
   }
 
-  .ai-banner {
+  .ai-banner,
+  .three-day-section {
     grid-column: span 1;
+  }
+
+  .three-day-section {
+    grid-template-columns: 1fr;
+  }
+
+  .day-card,
+  .home-grid>.card {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .week-row {
+    min-width: 0;
+  }
+
+  .check-item {
+    min-width: 0;
+  }
+
+  .check-name,
+  .ex-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 }
 
 @media (max-width: 480px) {
   .page {
-    padding: 20px 16px;
+    padding: 20px 12px;
+  }
+
+  .stat-val {
+    font-size: 16px;
+  }
+
+  .page-title {
+    font-size: 28px;
   }
 }

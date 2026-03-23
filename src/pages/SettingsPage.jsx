@@ -1,17 +1,61 @@
 import { useState } from 'react'
-import { Sun, Moon, Ruler, Lock, LogOut, Trash2, ChevronRight, Check } from 'lucide-react'
+import { Sun, Moon, Ruler, Lock, LogOut, Trash2, ChevronRight, Check, Loader2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { api } from '../services/api'
 import './SettingsPage.css'
 
 export default function SettingsPage() {
-  const { theme, toggleTheme, units, setUnits, setIsLoggedIn } = useApp()
+  const { theme, toggleTheme, units, setUnits, logout } = useApp()
   const [showChangePw, setShowChangePw] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+  const [deletePassword, setDeletePassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
-  const handleLogout = () => setIsLoggedIn(false)
-  const handleDelete = () => setIsLoggedIn(false)
+  // ── Change Password ───────────────────────────────────────────────────
+  const handleChangePassword = async () => {
+    setPwError(''); setPwSuccess('')
+    if (!pw.current || !pw.next || !pw.confirm) {
+      setPwError('All fields are required'); return
+    }
+    if (pw.next.length < 6) {
+      setPwError('New password must be at least 6 characters'); return
+    }
+    if (pw.next !== pw.confirm) {
+      setPwError('New passwords do not match'); return
+    }
+    setPwLoading(true)
+    try {
+      const data = await api.changePassword({ currentPassword: pw.current, newPassword: pw.next })
+      setPwSuccess(data.message || 'Password updated!')
+      setPw({ current: '', next: '', confirm: '' })
+      setTimeout(() => setShowChangePw(false), 2000)
+    } catch (err) {
+      setPwError(err.message)
+    } finally { setPwLoading(false) }
+  }
+
+  // ── Logout ────────────────────────────────────────────────────────────
+  const handleLogout = () => {
+    logout()
+  }
+
+  // ── Delete Account ────────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!deletePassword) { setDeleteError('Password is required'); return }
+    setDeleteLoading(true); setDeleteError('')
+    try {
+      await api.deleteAccount({ password: deletePassword })
+      logout()
+    } catch (err) {
+      setDeleteError(err.message)
+    } finally { setDeleteLoading(false) }
+  }
 
   return (
     <div className="page fade-up">
@@ -95,7 +139,7 @@ export default function SettingsPage() {
             </div>
             <button
               className="btn btn-ghost btn-sm section-toggle"
-              onClick={() => setShowChangePw(!showChangePw)}
+              onClick={() => { setShowChangePw(!showChangePw); setPwError(''); setPwSuccess('') }}
             >
               <ChevronRight size={16} style={{ transform: showChangePw ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
@@ -103,6 +147,8 @@ export default function SettingsPage() {
 
           {showChangePw && (
             <div className="pw-form fade-up">
+              {pwError && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{pwError}</div>}
+              {pwSuccess && <div style={{ background: 'rgba(0,245,160,0.1)', border: '1px solid rgba(0,245,160,0.25)', color: 'var(--accent)', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{pwSuccess}</div>}
               <div className="form-group">
                 <label className="label">Current Password</label>
                 <input type="password" placeholder="••••••••" value={pw.current} onChange={e => setPw(p => ({ ...p, current: e.target.value }))} />
@@ -116,10 +162,10 @@ export default function SettingsPage() {
                 <input type="password" placeholder="••••••••" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} />
               </div>
               <div className="pw-actions">
-                <button className="btn btn-primary btn-sm" onClick={() => { alert('Password updated!'); setShowChangePw(false); setPw({ current:'', next:'', confirm:'' }) }}>
-                  <Check size={14} /> Update Password
+                <button className="btn btn-primary btn-sm" onClick={handleChangePassword} disabled={pwLoading}>
+                  {pwLoading ? <Loader2 size={14} className="spin-icon" /> : <Check size={14} />} Update Password
                 </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowChangePw(false)}>Cancel</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setShowChangePw(false); setPwError(''); setPwSuccess('') }}>Cancel</button>
               </div>
             </div>
           )}
@@ -131,7 +177,7 @@ export default function SettingsPage() {
           <div className="danger-actions">
             {/* Logout */}
             {!showLogoutConfirm ? (
-              <button className="btn btn-ghost danger-btn" onClick={() => setShowLogoutConfirm(true)}>
+              <button className="btn btn-danger-ghost danger-btn" onClick={() => setShowLogoutConfirm(true)}>
                 <LogOut size={16} /> Sign Out
               </button>
             ) : (
@@ -144,21 +190,31 @@ export default function SettingsPage() {
 
             {/* Delete Account */}
             {!showDeleteConfirm ? (
-              <button className="btn btn-ghost danger-btn delete-btn" onClick={() => setShowDeleteConfirm(true)}>
+              <button className="btn btn-danger-ghost danger-btn delete-btn" onClick={() => setShowDeleteConfirm(true)}>
                 <Trash2 size={16} /> Delete Account
               </button>
             ) : (
               <div className="confirm-row fade-up">
-                <span className="confirm-text">This is permanent. Are you sure?</span>
-                <button className="btn btn-danger btn-sm" onClick={handleDelete}>Yes, Delete</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                <span className="confirm-text">This is permanent. Enter your password to confirm:</span>
+                {deleteError && <div style={{ color: '#f87171', fontSize: 13, marginBottom: 8 }}>{deleteError}</div>}
+                <input
+                  type="password"
+                  placeholder="Enter password"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  style={{ marginBottom: 8 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={deleteLoading}>
+                    {deleteLoading ? <Loader2 size={14} className="spin-icon" /> : 'Yes, Delete'}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError('') }}>Cancel</button>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      
     </div>
   )
 }

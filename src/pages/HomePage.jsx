@@ -1,54 +1,149 @@
-import { useState } from 'react'
-import { Download, CheckSquare, Square, ChevronRight, Flame, Dumbbell, Clock, TrendingUp } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Download, CheckSquare, Square, Flame, Dumbbell, Clock, TrendingUp, Loader2, RefreshCw, ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { api } from '../services/api'
+import { downloadWorkoutPDF } from '../utils/pdfGenerator'
 import './HomePage.css'
-import { downloadWorkoutPDF } from '../utils/pdfGenerator';
 
-const weekPlan = [
-  { day: 'Mon', workout: 'Upper Body Strength', done: true },
-  { day: 'Tue', workout: 'HIIT Cardio', done: true },
-  { day: 'Wed', workout: 'Rest & Recovery', done: true },
-  { day: 'Thu', workout: 'Lower Body Power', done: false },
-  { day: 'Fri', workout: 'Core & Mobility', done: false },
-  { day: 'Sat', workout: 'Full Body Circuit', done: false },
-  { day: 'Sun', workout: 'Active Rest', done: false },
-]
-
-const todayChecklist = [
-  { id: 1, task: '3 sets of bench press (12 reps)', done: true },
-  { id: 2, task: '4 sets of pull-ups (8 reps)', done: true },
-  { id: 3, task: 'Shoulder press (3×10)', done: false },
-  { id: 4, task: 'Tricep dips (3×12)', done: false },
-  { id: 5, task: '10 min cool-down stretch', done: false },
-]
+const CHECKLIST_KEY = 'fitai_checklist'
 
 export default function HomePage() {
-  const { user, streak } = useApp()
-  const [checklist, setChecklist] = useState(todayChecklist)
+  const { user, streak, setStreak } = useApp()
+  const [planData, setPlanData] = useState(null)
+  const [todayInfo, setTodayInfo] = useState(null)
+  const [yesterdayInfo, setYesterdayInfo] = useState(null)
+  const [tomorrowInfo, setTomorrowInfo] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [completing, setCompleting] = useState(false)
+  const [undoing, setUndoing] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [todayCompleted, setTodayCompleted] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(null)
 
-  const toggle = id => setChecklist(c => c.map(t => t.id === id ? { ...t, done: !t.done } : t))
-  const completed = checklist.filter(t => t.done).length
-  const progress = Math.round((completed / checklist.length) * 100)
+  // ── Persist checklist in sessionStorage ───────────────────────────────────
+  const [checkedExercises, setCheckedExercises] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(CHECKLIST_KEY)
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch { return new Set() }
+  })
+
+  useEffect(() => {
+    sessionStorage.setItem(CHECKLIST_KEY, JSON.stringify([...checkedExercises]))
+  }, [checkedExercises])
+
+  // Fetch weekly plan on mount
+  useEffect(() => {
+    api.getPlan()
+      .then(data => {
+        setPlanData(data.plan)
+        setTodayInfo(data.today)
+        setYesterdayInfo(data.yesterday)
+        setTomorrowInfo(data.tomorrow)
+        setTodayCompleted(data.today?.completed || false)
+      })
+      .catch(() => { })
+      .finally(() => setLoading(false))
+  }, [])
+
+  // ── Complete today's workout ──────────────────────────────────────────────
+  const handleComplete = async () => {
+    setCompleting(true)
+    try {
+      const data = await api.completeTodayWorkout()
+      setStreak(data.streak)
+      setTodayCompleted(true)
+    } catch (_) { }
+    setCompleting(false)
+  }
+
+  // ── Undo today's completion ───────────────────────────────────────────────
+  const handleUndo = async () => {
+    setUndoing(true)
+    try {
+      const data = await api.undoTodayWorkout()
+      setStreak(data.streak)
+      setTodayCompleted(false)
+    } catch (_) { }
+    setUndoing(false)
+  }
+
+  // ── Exercises & checklist ─────────────────────────────────────────────────
+  const todayExercises = todayInfo?.workout?.exercises || []
+  const isRestDay = todayExercises.length === 1 &&
+    todayExercises[0]?.name?.toLowerCase().includes('rest')
+
+  const toggleExercise = (i) => {
+    setCheckedExercises(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
+  const progress = todayExercises.length > 0 && !isRestDay
+    ? Math.round((checkedExercises.size / todayExercises.length) * 100)
+    : 0
+
+  // ── PDF data ──────────────────────────────────────────────────────────────
+  const pdfData = planData
+    ? planData.map(d => ({
+      day: d.day,
+      exercises: (d.exercises || []).map(ex => ({ name: ex.name, sets: ex.sets })),
+    }))
+    : []
+
+  // ── Render exercise card ──────────────────────────────────────────────────
+  const ExerciseList = ({ exercises, isDimmed = false }) => {
+    if (!exercises || exercises.length === 0) return null
+    const isRest = exercises.length === 1 && exercises[0]?.name?.toLowerCase().includes('rest')
+    return (
+      <div className={`exercise-list ${isDimmed ? 'dimmed' : ''}`}>
+        {isRest ? (
+          <div className="rest-badge">{exercises[0].name} — {exercises[0].sets}</div>
+        ) : (
+          exercises.map((ex, i) => (
+            <div key={i} className="exercise-row">
+              <span className="ex-name">{ex.name}</span>
+              <span className="ex-sets">{ex.sets}</span>
+            </div>
+          ))
+        )}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="page fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <Loader2 size={32} className="spin-icon" style={{ color: 'var(--accent)' }} />
+      </div>
+    )
+  }
 
   return (
     <div className="page fade-up">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Hey, {user.name.split(' ')[0]} 👋</h1>
+          <h1 className="page-title">Hey, {user?.name?.split(' ')[0] || 'there'} 👋</h1>
           <p className="page-sub">Ready to crush today's session?</p>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => downloadWorkoutPDF(workoutData)}>
-          <Download size={15} /> Download Plan PDF
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {pdfData.length > 0 && (
+            <button className="btn btn-ghost btn-sm" onClick={() => downloadWorkoutPDF(pdfData)}>
+              <Download size={15} /> Download PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats bar */}
       <div className="stats-row">
         {[
           { icon: Flame, label: 'Day Streak', value: streak, color: '#ffa502' },
-          { icon: Dumbbell, label: 'Workouts Done', value: 47, color: 'var(--accent)' },
-          { icon: Clock, label: 'Avg Duration', value: '42 min', color: 'var(--accent2)' },
-          { icon: TrendingUp, label: 'This Week', value: '3/5', color: '#a78bfa' },
+          { icon: Dumbbell, label: 'Today', value: todayCompleted ? '✓ Done' : (isRestDay ? 'Rest' : 'Pending'), color: todayCompleted ? 'var(--accent)' : '#888' },
+          { icon: TrendingUp, label: 'Goal', value: user?.goal || '—', color: '#a78bfa' },
+          { icon: Clock, label: 'Level', value: user?.level || '—', color: 'var(--accent2)' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="stat-card card">
             <Icon size={20} style={{ color }} />
@@ -58,147 +153,142 @@ export default function HomePage() {
         ))}
       </div>
 
-      <div className="home-grid">
-        {/* AI Info Banner */}
-        <div className="card ai-banner">
+      {!planData && (
+        <div className="card ai-banner" style={{ marginBottom: 20 }}>
           <div className="ai-glow" />
-          <span className="ai-tag">AI Recommendation</span>
-          <h3>Today: Upper Body Strength</h3>
-          <p>Based on your recovery data and last session, today focuses on chest, back, and shoulders. Estimated 45 minutes.</p>
-          <div className="plan-pills">
-            <span className="pill">Chest</span>
-            <span className="pill">Back</span>
-            <span className="pill">Shoulders</span>
-            <span className="pill accent-pill">Intermediate</span>
-          </div>
+          <span className="ai-tag">Get Started</span>
+          <h3>No plan yet!</h3>
+          <p>Complete your profile (age, height, weight) to generate a personalized AI workout plan.</p>
         </div>
+      )}
 
-        {/* Week Plan */}
-        <div className="card">
-          <h3 className="card-heading">Weekly Plan</h3>
-          <div className="week-list">
-            {weekPlan.map((d, i) => (
-              <div key={d.day} className={`week-row ${i === 3 ? 'today' : ''}`}>
-                <span className="week-day">{d.day}</span>
-                <span className="week-workout">{d.workout}</span>
-                <span className={`week-status ${d.done ? 'done' : i === 3 ? 'active' : ''}`}>
-                  {d.done ? '✓' : i === 3 ? 'Today' : '—'}
-                </span>
+      {planData && (
+        <div className="home-grid">
+
+          {/* ── 3-Day View: Yesterday / Today / Tomorrow ──────────────── */}
+          <div className="three-day-section">
+
+            {/* Yesterday */}
+            <div className="card day-card day-past">
+              <div className="day-card-header">
+                <ChevronLeft size={16} />
+                <span className="day-card-label">Yesterday</span>
+                <span className="day-card-name">{yesterdayInfo?.dayName}</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Daily Checklist */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 className="card-heading" style={{ margin: 0 }}>Today's Checklist</h3>
-            <span className="progress-badge">{completed}/{checklist.length}</span>
-          </div>
-          <div className="progress-bar-wrap">
-            <div className="progress-bar" style={{ width: `${progress}%` }} />
-          </div>
-          <div className="checklist">
-            {checklist.map(t => (
-              <button key={t.id} className={`check-item ${t.done ? 'checked' : ''}`} onClick={() => toggle(t.id)}>
-                {t.done ? <CheckSquare size={16} /> : <Square size={16} />}
-                <span>{t.task}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Last Workout */}
-        <div className="card">
-          <h3 className="card-heading">Last Workout</h3>
-          <div className="last-workout">
-            <div className="lw-header">
-              <div>
-                <div className="lw-name">Lower Body Power</div>
-                <div className="lw-meta">2 days ago · 52 min</div>
-              </div>
-              <span className="pill accent-pill">Completed</span>
+              <ExerciseList exercises={yesterdayInfo?.workout?.exercises} isDimmed />
             </div>
-            <div className="lw-stats">
-              {[['Sets', '18'], ['Reps', '174'], ['Vol.', '3,240 kg']].map(([k, v]) => (
-                <div key={k} className="lw-stat">
-                  <div className="lw-stat-val">{v}</div>
-                  <div className="lw-stat-key">{k}</div>
+
+            {/* Today */}
+            <div className="card day-card day-today">
+              <div className="ai-glow" />
+              <div className="day-card-header">
+                <span className="day-card-label today-label">⚡ Today</span>
+                <span className="day-card-name">{todayInfo?.dayName}</span>
+                {todayCompleted && <span className="pill accent-pill" style={{ marginLeft: 'auto' }}>✓ Done</span>}
+              </div>
+
+              {isRestDay ? (
+                <div className="rest-day-card">
+                  <h3>Rest Day</h3>
+                  <p>{todayExercises[0]?.sets || 'Recover and recharge!'}</p>
                 </div>
-              ))}
+              ) : (
+                <>
+                  {todayExercises.length > 0 && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                        <span className="progress-badge">{checkedExercises.size}/{todayExercises.length}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{progress}%</span>
+                      </div>
+                      <div className="progress-bar-wrap">
+                        <div className="progress-bar" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="checklist">
+                        {todayExercises.map((ex, i) => (
+                          <button key={i} className={`check-item ${checkedExercises.has(i) ? 'checked' : ''}`} onClick={() => toggleExercise(i)}>
+                            {checkedExercises.has(i) ? <CheckSquare size={16} /> : <Square size={16} />}
+                            <span className="check-name">{ex.name}</span>
+                            <span className="check-sets">{ex.sets}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    {!todayCompleted ? (
+                      <button
+                        className="btn btn-primary"
+                        style={{ flex: 1 }}
+                        onClick={handleComplete}
+                        disabled={completing}
+                      >
+                        {completing ? <Loader2 size={16} className="spin-icon" /> : <>✓ Mark Today Complete</>}
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-ghost"
+                        style={{ flex: 1, fontSize: 13 }}
+                        onClick={handleUndo}
+                        disabled={undoing}
+                      >
+                        {undoing ? <Loader2 size={14} className="spin-icon" /> : <><Undo2 size={14} /> Undo Completion</>}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Tomorrow */}
+            <div className="card day-card day-future">
+              <div className="day-card-header">
+                <span className="day-card-label">Tomorrow</span>
+                <span className="day-card-name">{tomorrowInfo?.dayName}</span>
+                <ChevronRight size={16} />
+              </div>
+              <ExerciseList exercises={tomorrowInfo?.workout?.exercises} isDimmed />
+            </div>
+          </div>
+
+          {/* ── Full Week Plan (Mon → Sun) ────────────────────────────── */}
+          <div className="card">
+            <h3 className="card-heading">Full Week Plan</h3>
+            <div className="week-list">
+              {planData.map((d, i) => {
+                const isToday = d.day === todayInfo?.dayName
+                const isRest = d.exercises?.length === 1 && d.exercises[0]?.name?.toLowerCase().includes('rest')
+                return (
+                  <div key={i} className={`week-row ${isToday ? 'today' : ''}`} onClick={() => setSelectedDay(d)} style={{ cursor: 'pointer' }}>
+                    <span className="week-day">{d.day.slice(0, 3)}</span>
+                    <span className="week-workout">
+                      {isRest ? 'Rest Day' : d.exercises?.map(e => e.name).join(', ')}
+                    </span>
+                    <span className={`week-status ${isToday ? 'active' : ''}`}>
+                      {isToday ? (todayCompleted ? '✓' : 'Today') : '—'}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Modal for Selected Day ─────────────────────────────── */}
+      {selectedDay && (
+        <div className="modal-overlay" onClick={() => setSelectedDay(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{selectedDay.day} Workout</h3>
+              <button className="btn-close" onClick={() => setSelectedDay(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <ExerciseList exercises={selectedDay.exercises} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-
-
-
-const workoutData = [
-    { 
-        day: 'Monday', 
-        exercises: [
-            { name: 'Push-ups', sets: '3 sets × 12 reps' },
-            { name: 'Bench Press', sets: '4 sets × 8 reps' },
-            { name: 'Dumbbell Flies', sets: '3 sets × 10 reps' },
-            { name: 'Tricep Dips', sets: '3 sets × 12 reps' }
-        ]
-    },
-    { 
-        day: 'Tuesday', 
-        exercises: [
-            { name: 'Squats', sets: '4 sets × 10 reps' },
-            { name: 'Leg Press', sets: '3 sets × 12 reps' },
-            { name: 'Lunges', sets: '3 sets × 10 reps' },
-            { name: 'Leg Curls', sets: '3 sets × 12 reps' }
-        ]
-    },
-    { 
-        day: 'Wednesday', 
-        exercises: [
-            { name: 'Cardio Run', sets: '5 km • 40 min' },
-            { name: 'Jump Rope', sets: '3 sets × 50 reps' },
-            { name: 'Burpees', sets: '3 sets × 15 reps' },
-            { name: 'Mountain Climbers', sets: '3 sets × 30 sec' }
-        ]
-    },
-    { 
-        day: 'Thursday', 
-        exercises: [
-            { name: 'Pull-ups', sets: '4 sets × 8 reps' },
-            { name: 'Barbell Rows', sets: '4 sets × 10 reps' },
-            { name: 'Lat Pulldowns', sets: '3 sets × 12 reps' },
-            { name: 'Bicep Curls', sets: '3 sets × 10 reps' }
-        ]
-    },
-    { 
-        day: 'Friday', 
-        exercises: [
-            { name: 'Deadlifts', sets: '4 sets × 6 reps' },
-            { name: 'Shoulder Press', sets: '3 sets × 10 reps' },
-            { name: 'Lateral Raises', sets: '3 sets × 12 reps' },
-            { name: 'Face Pulls', sets: '3 sets × 15 reps' }
-        ]
-    },
-    { 
-        day: 'Saturday', 
-        exercises: [
-            { name: 'Basketball', sets: '60 min' },
-            { name: 'Agility Ladder', sets: '3 sets × 1 min' },
-            { name: 'Box Jumps', sets: '3 sets × 10 reps' },
-            { name: 'Sprint Training', sets: '6 × 100m' }
-        ]
-    },
-    { 
-        day: 'Sunday', 
-        exercises: [
-            { name: 'Yoga', sets: '45 min' },
-            { name: 'Stretching', sets: '20 min' },
-            { name: 'Meditation', sets: '15 min' },
-            { name: 'Walking', sets: '30 min • Casual' }
-        ]
-    }
-];

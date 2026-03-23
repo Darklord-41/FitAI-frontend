@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Home, User, Flame, Dumbbell, Settings, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { api } from '../services/api'
 import './sb1.css'
  
 const nav = [
@@ -15,6 +16,8 @@ const nav = [
 export default function Sidebar() {
   const { user, streak, isSidebarOpen, toggleSidebar } = useApp()
   const [collapsed, setCollapsed] = useState(false)
+
+  const avatarSrc = user?.avatar ? api.avatarUrl(user.avatar) : null
  
   return (
     <>
@@ -38,8 +41,8 @@ export default function Sidebar() {
         {/* User mini */}
         <div className="sidebar-user">
           <div className="user-avatar">
-            {user.avatar
-              ? <img src={user.avatar} alt="" />
+            {avatarSrc
+              ? <img src={avatarSrc} alt="" />
               : <span>{user.name.charAt(0)}</span>
             }
           </div>
