@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Zap, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { api } from '../services/api'
@@ -8,7 +9,10 @@ export default function AuthPage() {
   const { login } = useApp()
 
   // mode: login | register | otp | forgot | reset
-  const [mode, setMode] = useState('login')
+  const location = useLocation()
+  const [mode, setMode] = useState(() => {
+    return new URLSearchParams(location.search).get('signup') === 'true' ? 'register' : 'login'
+  })
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

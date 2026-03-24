@@ -265,7 +265,7 @@ export default function HomePage() {
                       {isRest ? 'Rest Day' : d.exercises?.map(e => e.name).join(', ')}
                     </span>
                     <span className={`week-status ${isToday ? 'active' : ''}`}>
-                      {isToday ? (todayCompleted ? '✓' : 'Today') : '—'}
+                      {isToday ? (isRest ? '✓' : (todayCompleted ? '✓' : 'Today')) : '—'}
                     </span>
                   </div>
                 )

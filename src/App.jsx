@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppProvider, useApp } from './context/AppContext'
 import Sidebar from './components/sb1'
 import AuthPage from './pages/AuthPage'
+import LandingPage from './pages/LandingPage'
 import HomePage from './pages/HomePage'
 import ProfilePage from './pages/ProfilePage'
 import StreakPage from './pages/StreakPage'
@@ -12,7 +13,15 @@ import './App.css'
 const AppRoutes = () => {
   const { isLoggedIn, isSidebarOpen } = useApp()
 
-  if (!isLoggedIn) return <AuthPage />
+  if (!isLoggedIn) {
+    return (
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    )
+  }
 
   const contentStyle = {
     paddingLeft: window.innerWidth > 768 
