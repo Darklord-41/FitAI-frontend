@@ -87,6 +87,7 @@ export default function AuthPage() {
     try {
       const data = await api.verifyOtp({ userId, otp })
       setSuccess(data.message)
+      localStorage.setItem('fitai_plan_generating', 'true')
       login(data.token, data.user)
     } catch (err) {
       setError(err.message)

@@ -6,6 +6,7 @@ import { downloadWorkoutPDF } from '../utils/pdfGenerator'
 import './HomePage.css'
 
 const CHECKLIST_KEY = 'fitai_checklist'
+const PLAN_GENERATING_KEY = 'fitai_plan_generating'
 
 export default function HomePage() {
   const { user, streak, setStreak } = useApp()
@@ -14,6 +15,7 @@ export default function HomePage() {
   const [yesterdayInfo, setYesterdayInfo] = useState(null)
   const [tomorrowInfo, setTomorrowInfo] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [planGenerating, setPlanGenerating] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [undoing, setUndoing] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
@@ -34,16 +36,37 @@ export default function HomePage() {
 
   // Fetch weekly plan on mount
   useEffect(() => {
-    api.getPlan()
-      .then(data => {
-        setPlanData(data.plan)
-        setTodayInfo(data.today)
-        setYesterdayInfo(data.yesterday)
-        setTomorrowInfo(data.tomorrow)
-        setTodayCompleted(data.today?.completed || false)
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false))
+    let pollInterval = null
+
+    const fetchPlan = async () => {
+      try {
+        const data = await api.getPlan()
+
+        if (data.plan) {
+          setPlanData(data.plan)
+          setTodayInfo(data.today)
+          setYesterdayInfo(data.yesterday)
+          setTomorrowInfo(data.tomorrow)
+          setTodayCompleted(data.today?.completed || false)
+          setPlanGenerating(false)
+          localStorage.removeItem(PLAN_GENERATING_KEY)
+          if (pollInterval) clearInterval(pollInterval)
+        } else {
+          const generatingFlag = localStorage.getItem(PLAN_GENERATING_KEY)
+          if (generatingFlag) setPlanGenerating(true)
+        }
+      } catch (_) { }
+    }
+
+    fetchPlan().finally(() => setLoading(false))
+
+    const generatingFlag = localStorage.getItem(PLAN_GENERATING_KEY)
+    if (generatingFlag) {
+      setPlanGenerating(true)
+      pollInterval = setInterval(fetchPlan, 5000)
+    }
+
+    return () => { if (pollInterval) clearInterval(pollInterval) }
   }, [])
 
   // ── Complete today's workout ──────────────────────────────────────────────
@@ -153,7 +176,24 @@ export default function HomePage() {
         ))}
       </div>
 
-      {!planData && (
+      {!planData && planGenerating && (
+        <div className="card ai-banner" style={{ marginBottom: 20 }}>
+          <div className="ai-glow" />
+          <span className="ai-tag">AI Working</span>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Loader2 size={22} className="spin-icon" style={{ color: 'var(--accent)' }} />
+            Generating your plan...
+          </h3>
+          <p>Our AI is building a personalized workout plan just for you. This takes about 10 seconds.</p>
+          <div className="plan-pills">
+            <span className="pill accent-pill">Analyzing your profile</span>
+            <span className="pill">Building weekly schedule</span>
+            <span className="pill">Optimizing exercises</span>
+          </div>
+        </div>
+      )}
+
+      {!planData && !planGenerating && (
         <div className="card ai-banner" style={{ marginBottom: 20 }}>
           <div className="ai-glow" />
           <span className="ai-tag">Get Started</span>
